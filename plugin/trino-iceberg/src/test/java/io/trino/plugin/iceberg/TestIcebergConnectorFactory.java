@@ -32,7 +32,7 @@ public class TestIcebergConnectorFactory
     }
 
     @Test
-    public void testRestCatalogSigV4WithStsWebIdentity()
+    public void testRestCatalogSigV4UserSession()
     {
         Map<String, String> config = ImmutableMap.<String, String>builder()
                 .put("iceberg.catalog.type", "rest")
@@ -40,7 +40,6 @@ public class TestIcebergConnectorFactory
                 .put("iceberg.rest-catalog.warehouse", "test")
                 .put("iceberg.rest-catalog.security", "SIGV4")
                 .put("iceberg.rest-catalog.session", "USER")
-                .put("iceberg.rest-catalog.sts-web-identity", "true")
                 .put("iceberg.rest-catalog.vended-credentials-enabled", "true")
                 .put("fs.s3.enabled", "true")
                 .put("s3.region", "us-east-1")

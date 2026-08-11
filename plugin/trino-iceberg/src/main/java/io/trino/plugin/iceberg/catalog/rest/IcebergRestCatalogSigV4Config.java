@@ -15,16 +15,17 @@ package io.trino.plugin.iceberg.catalog.rest;
 
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
+import io.airlift.configuration.DefunctConfig;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import org.apache.iceberg.aws.AwsProperties;
 
 import java.util.Optional;
 
+@DefunctConfig("iceberg.rest-catalog.sts-web-identity")
 public class IcebergRestCatalogSigV4Config
 {
     private String signingName = AwsProperties.REST_SIGNING_NAME_DEFAULT;
-    private boolean stsWebIdentity;
     private String stsRoleArn;
     private String stsPolicy;
     private Integer stsDurationSeconds;
@@ -40,19 +41,6 @@ public class IcebergRestCatalogSigV4Config
     public IcebergRestCatalogSigV4Config setSigningName(String signingName)
     {
         this.signingName = signingName;
-        return this;
-    }
-
-    public boolean isStsWebIdentity()
-    {
-        return stsWebIdentity;
-    }
-
-    @Config("iceberg.rest-catalog.sts-web-identity")
-    @ConfigDescription("Exchange the authenticated user's OIDC token for per-user STS credentials via AssumeRoleWithWebIdentity")
-    public IcebergRestCatalogSigV4Config setStsWebIdentity(boolean stsWebIdentity)
-    {
-        this.stsWebIdentity = stsWebIdentity;
         return this;
     }
 

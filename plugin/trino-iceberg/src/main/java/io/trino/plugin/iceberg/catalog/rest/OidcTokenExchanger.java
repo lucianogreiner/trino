@@ -15,11 +15,10 @@ package io.trino.plugin.iceberg.catalog.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Cache;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
-import io.trino.cache.NonEvictableCache;
-import io.trino.cache.SafeCaches;
+import io.trino.cache.EvictableCacheBuilder;
 import io.trino.spi.TrinoException;
 
 import java.io.IOException;
@@ -31,6 +30,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_CATALOG_ERROR;
 
@@ -49,7 +49,7 @@ public class OidcTokenExchanger
     private final String scope;
     private final Map<String, String> extraParams;
     private final HttpClient httpClient;
-    private final NonEvictableCache<String, CachedToken> cache;
+    private final Cache<String, CachedToken> cache;
 
     @Inject
     public OidcTokenExchanger(
@@ -76,7 +76,10 @@ public class OidcTokenExchanger
         this.scope = scope;
         this.extraParams = Map.copyOf(extraParams);
         this.httpClient = HttpClient.newHttpClient();
-        this.cache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder().maximumSize(1000));
+        this.cache = EvictableCacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(DEFAULT_EXPIRY_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS)
+                .build();
     }
 
     public String getToken(String oidcToken)

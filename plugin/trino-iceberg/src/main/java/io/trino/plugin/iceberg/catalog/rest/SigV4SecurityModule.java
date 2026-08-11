@@ -17,6 +17,7 @@ import com.google.inject.Binder;
 import com.google.inject.Scopes;
 import io.airlift.configuration.AbstractConfigurationAwareModule;
 import io.trino.filesystem.s3.S3FileSystemConfig;
+import io.trino.plugin.iceberg.catalog.rest.IcebergRestCatalogConfig.SessionType;
 
 import java.lang.reflect.Constructor;
 
@@ -31,8 +32,9 @@ public class SigV4SecurityModule
     {
         configBinder(binder).bindConfig(IcebergRestCatalogSigV4Config.class);
         binder.bind(SecurityProperties.class).to(SigV4AwsProperties.class);
-        IcebergRestCatalogSigV4Config sigV4Config = buildConfigObject(IcebergRestCatalogSigV4Config.class);
-        if (sigV4Config.isStsWebIdentity()) {
+        if (buildConfigObject(IcebergRestCatalogConfig.class).getSessionType() == SessionType.USER) {
+            // session=USER + security=SIGV4: AssumeRoleWithWebIdentity is implicit — exchange the user's
+            // OIDC token for per-user STS credentials at session time.
             // Use toConstructor to avoid the Guice cycle: OptionalBinder internally creates
             // T → @Actual T, so .to(T.class) would produce T → @Actual T → T.
             try {

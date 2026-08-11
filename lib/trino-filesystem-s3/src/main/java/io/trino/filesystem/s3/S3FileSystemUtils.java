@@ -76,7 +76,9 @@ final class S3FileSystemUtils
     static StsClient createStsClient(S3FileSystemConfig config, Optional<AwsCredentialsProvider> credentialsProvider)
     {
         StsClientBuilder sts = StsClient.builder();
-        Optional.ofNullable(config.getStsEndpoint()).map(URI::create).ifPresent(sts::endpointOverride);
+        Optional.ofNullable(config.getStsEndpoint())
+                .or(() -> Optional.ofNullable(config.getEndpoint()))
+                .map(URI::create).ifPresent(sts::endpointOverride);
         Optional.ofNullable(config.getStsRegion())
                 .or(() -> Optional.ofNullable(config.getRegion()))
                 .map(Region::of).ifPresent(sts::region);

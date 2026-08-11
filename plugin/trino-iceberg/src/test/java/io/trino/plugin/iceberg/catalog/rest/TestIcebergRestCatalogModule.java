@@ -29,23 +29,9 @@ class TestIcebergRestCatalogModule
                 .setTokenDelegation(true)
                 .setSessionType(IcebergRestCatalogConfig.SessionType.NONE);
 
-        assertThatThrownBy(() -> validateConfig(config, new IcebergRestCatalogSigV4Config(), new IcebergRestCatalogTokenExchangeConfig()))
+        assertThatThrownBy(() -> validateConfig(config, new IcebergRestCatalogTokenExchangeConfig()))
                 .isInstanceOf(TrinoException.class)
                 .hasMessageContaining("iceberg.rest-catalog.token-delegation requires iceberg.rest-catalog.session=user");
-    }
-
-    @Test
-    void testStsWebIdentityRequiresUserSession()
-    {
-        IcebergRestCatalogConfig config = new IcebergRestCatalogConfig()
-                .setSessionType(IcebergRestCatalogConfig.SessionType.NONE);
-
-        IcebergRestCatalogSigV4Config sigV4Config = new IcebergRestCatalogSigV4Config()
-                .setStsWebIdentity(true);
-
-        assertThatThrownBy(() -> validateConfig(config, sigV4Config, new IcebergRestCatalogTokenExchangeConfig()))
-                .isInstanceOf(TrinoException.class)
-                .hasMessageContaining("iceberg.rest-catalog.sts-web-identity requires iceberg.rest-catalog.session=user");
     }
 
     @Test
@@ -56,7 +42,7 @@ class TestIcebergRestCatalogModule
 
         IcebergRestCatalogTokenExchangeConfig tokenExchangeConfig = enabledTokenExchangeConfig();
 
-        assertThatThrownBy(() -> validateConfig(config, new IcebergRestCatalogSigV4Config(), tokenExchangeConfig))
+        assertThatThrownBy(() -> validateConfig(config, tokenExchangeConfig))
                 .isInstanceOf(TrinoException.class)
                 .hasMessageContaining("iceberg.rest-catalog.token-exchange-enabled requires iceberg.rest-catalog.session=user");
     }
@@ -68,19 +54,7 @@ class TestIcebergRestCatalogModule
                 .setTokenDelegation(true)
                 .setSessionType(IcebergRestCatalogConfig.SessionType.USER);
 
-        validateConfig(config, new IcebergRestCatalogSigV4Config(), new IcebergRestCatalogTokenExchangeConfig());
-    }
-
-    @Test
-    void testStsWebIdentityWithUserSessionIsValid()
-    {
-        IcebergRestCatalogConfig config = new IcebergRestCatalogConfig()
-                .setSessionType(IcebergRestCatalogConfig.SessionType.USER);
-
-        IcebergRestCatalogSigV4Config sigV4Config = new IcebergRestCatalogSigV4Config()
-                .setStsWebIdentity(true);
-
-        validateConfig(config, sigV4Config, new IcebergRestCatalogTokenExchangeConfig());
+        validateConfig(config, new IcebergRestCatalogTokenExchangeConfig());
     }
 
     @Test
@@ -89,7 +63,7 @@ class TestIcebergRestCatalogModule
         IcebergRestCatalogConfig config = new IcebergRestCatalogConfig()
                 .setSessionType(IcebergRestCatalogConfig.SessionType.USER);
 
-        validateConfig(config, new IcebergRestCatalogSigV4Config(), enabledTokenExchangeConfig());
+        validateConfig(config, enabledTokenExchangeConfig());
     }
 
     private static IcebergRestCatalogTokenExchangeConfig enabledTokenExchangeConfig()
@@ -105,18 +79,12 @@ class TestIcebergRestCatalogModule
     // Mirrors the validation logic in IcebergRestCatalogModule.setup()
     private static void validateConfig(
             IcebergRestCatalogConfig config,
-            IcebergRestCatalogSigV4Config sigV4Config,
             IcebergRestCatalogTokenExchangeConfig tokenExchangeConfig)
     {
         if (config.isTokenDelegation() && config.getSessionType() != IcebergRestCatalogConfig.SessionType.USER) {
             throw new TrinoException(
                     io.trino.spi.StandardErrorCode.NOT_SUPPORTED,
                     "iceberg.rest-catalog.token-delegation requires iceberg.rest-catalog.session=user");
-        }
-        if (sigV4Config.isStsWebIdentity() && config.getSessionType() != IcebergRestCatalogConfig.SessionType.USER) {
-            throw new TrinoException(
-                    io.trino.spi.StandardErrorCode.NOT_SUPPORTED,
-                    "iceberg.rest-catalog.sts-web-identity requires iceberg.rest-catalog.session=user");
         }
         if (tokenExchangeConfig.isEnabled() && config.getSessionType() != IcebergRestCatalogConfig.SessionType.USER) {
             throw new TrinoException(

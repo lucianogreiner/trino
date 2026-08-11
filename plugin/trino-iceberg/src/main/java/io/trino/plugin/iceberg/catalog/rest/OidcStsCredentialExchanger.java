@@ -15,11 +15,10 @@ package io.trino.plugin.iceberg.catalog.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Cache;
 import com.google.inject.Inject;
 import io.airlift.log.Logger;
-import io.trino.cache.NonEvictableCache;
-import io.trino.cache.SafeCaches;
+import io.trino.cache.EvictableCacheBuilder;
 import io.trino.filesystem.s3.S3FileSystemConfig;
 import io.trino.spi.TrinoException;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -33,6 +32,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_CATALOG_ERROR;
 
@@ -55,8 +55,8 @@ public class OidcStsCredentialExchanger
     private final String stsRegion;
     private final Optional<String> policy;
     private final Optional<Integer> configuredDurationSeconds;
-    // Keyed on the JWT `sub` claim; expiry is checked manually via CachedCredentials.expiresAt
-    private final NonEvictableCache<String, CachedCredentials> cache;
+    // Keyed on the JWT `sub` claim; expiry is enforced by both expireAfterWrite and the manual check in getCredentials()
+    private final Cache<String, CachedCredentials> cache;
 
     OidcStsCredentialExchanger(StsClient stsClient, String roleArn)
     {
@@ -66,7 +66,7 @@ public class OidcStsCredentialExchanger
         this.stsRegion = "(default)";
         this.policy = Optional.empty();
         this.configuredDurationSeconds = Optional.empty();
-        this.cache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder().maximumSize(1000));
+        this.cache = buildCache();
     }
 
     @Inject
@@ -82,18 +82,18 @@ public class OidcStsCredentialExchanger
                 .map(Region::of)
                 .ifPresent(builder::region);
 
-        // Required for MinIO: override the default AWS STS endpoint
-        this.stsEndpoint = Optional.ofNullable(s3Config.getStsEndpoint()).orElse("(default)");
-        Optional.ofNullable(s3Config.getStsEndpoint())
-                .map(URI::create)
-                .ifPresent(builder::endpointOverride);
+        // Fall back to s3.endpoint when s3.sts.endpoint is not set (e.g. MinIO co-locates STS with S3)
+        Optional<String> resolvedStsEndpoint = Optional.ofNullable(s3Config.getStsEndpoint())
+                .or(() -> Optional.ofNullable(s3Config.getEndpoint()));
+        this.stsEndpoint = resolvedStsEndpoint.orElse("(default)");
+        resolvedStsEndpoint.map(URI::create).ifPresent(builder::endpointOverride);
 
         this.stsClient = builder.build();
         this.roleArn = sigV4Config.getStsRoleArn()
                 .or(() -> Optional.ofNullable(s3Config.getIamRole()));
         this.policy = sigV4Config.getStsPolicy();
         this.configuredDurationSeconds = sigV4Config.getStsDurationSeconds();
-        this.cache = SafeCaches.buildNonEvictableCache(CacheBuilder.newBuilder().maximumSize(1000));
+        this.cache = buildCache();
         log.debug(
                 "OidcStsCredentialExchanger initialized: stsEndpoint=%s, stsRegion=%s, roleArn=%s, policy=%s, durationSeconds=%s",
                 stsEndpoint,
@@ -101,6 +101,16 @@ public class OidcStsCredentialExchanger
                 this.roleArn,
                 this.policy,
                 this.configuredDurationSeconds);
+    }
+
+    private static Cache<String, CachedCredentials> buildCache()
+    {
+        // expireAfterWrite guarantees stale entries are evicted even if exchange() failed and
+        // cache.put() was never called, avoiding the need to restart the coordinator on failures.
+        return EvictableCacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(MIN_DURATION_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS)
+                .build();
     }
 
     /**

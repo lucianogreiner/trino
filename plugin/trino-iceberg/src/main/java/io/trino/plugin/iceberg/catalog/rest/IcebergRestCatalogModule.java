@@ -84,10 +84,6 @@ public class IcebergRestCatalogModule
         if (restCatalogConfig.isTokenDelegation() && restCatalogConfig.getSessionType() != SessionType.USER) {
             throw new TrinoException(NOT_SUPPORTED, "iceberg.rest-catalog.token-delegation requires iceberg.rest-catalog.session=user");
         }
-        IcebergRestCatalogSigV4Config sigV4Config = buildConfigObject(IcebergRestCatalogSigV4Config.class);
-        if (sigV4Config.isStsWebIdentity() && restCatalogConfig.getSessionType() != SessionType.USER) {
-            throw new TrinoException(NOT_SUPPORTED, "iceberg.rest-catalog.sigv4.sts-web-identity requires iceberg.rest-catalog.session=user");
-        }
         IcebergRestCatalogTokenExchangeConfig tokenExchangeConfig = buildConfigObject(IcebergRestCatalogTokenExchangeConfig.class);
         if (tokenExchangeConfig.isEnabled() && restCatalogConfig.getSessionType() != SessionType.USER) {
             throw new TrinoException(NOT_SUPPORTED, "iceberg.rest-catalog.token-exchange-enabled requires iceberg.rest-catalog.session=user");

@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import io.trino.filesystem.s3.S3FileSystemConfig;
 import io.trino.plugin.iceberg.StsAwsCredentialProvider;
+import io.trino.plugin.iceberg.catalog.rest.IcebergRestCatalogConfig.SessionType;
 
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +56,7 @@ public class SigV4AwsProperties
     private final Map<String, String> properties;
 
     @Inject
-    public SigV4AwsProperties(IcebergRestCatalogSigV4Config sigV4Config, S3FileSystemConfig s3Config)
+    public SigV4AwsProperties(IcebergRestCatalogConfig catalogConfig, IcebergRestCatalogSigV4Config sigV4Config, S3FileSystemConfig s3Config)
     {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder()
                 .put("rest.auth.type", "sigv4")
@@ -63,25 +64,34 @@ public class SigV4AwsProperties
                 .put(REST_SIGNER_REGION, requireNonNull(s3Config.getRegion(), "s3.region is null"))
                 .put("rest-metrics-reporting-enabled", "false");
 
-        if (s3Config.getIamRole() != null) {
-            builder
-                    .put(CLIENT_CREDENTIALS_PROVIDER, StsAwsCredentialProvider.class.getName())
-                    .put(CLIENT_CREDENTIAL_AWS_IAM_ROLE, s3Config.getIamRole())
-                    .put(CLIENT_CREDENTIAL_AWS_IAM_ROLE_SESSION_NAME, "trino-iceberg-rest-catalog")
-                    .put(CLIENT_CREDENTIAL_AWS_SIGNER_REGION, s3Config.getRegion());
-            Optional.ofNullable(s3Config.getExternalId()).ifPresent(externalId -> builder.put(CLIENT_CREDENTIAL_AWS_ROLE_EXTERNAL_ID, externalId));
+        if (catalogConfig.getSessionType() == SessionType.USER) {
+            // Per-user AssumeRoleWithWebIdentity: credentials are injected at session time by OidcStsCredentialExchanger.
+            // iceberg.rest-catalog.sts-role-arn holds the catalog-specific role; s3.aws-access-key is filesystem-only.
+        }
+        else {
+            // session != USER: static credentials sign all catalog SigV4 requests.
+            Optional<String> catalogRole = sigV4Config.getStsRoleArn()
+                    // s3.iam-role as fallback is kept only for backward compatibility with pre-USER-session configs.
+                    .or(() -> Optional.ofNullable(s3Config.getIamRole()));
 
-            Optional.ofNullable(s3Config.getStsRegion()).ifPresent(stsRegion -> builder.put(CLIENT_CREDENTIAL_AWS_STS_REGION, stsRegion));
-            Optional.ofNullable(s3Config.getAwsAccessKey()).ifPresent(accessKey -> builder.put(CLIENT_CREDENTIAL_AWS_ACCESS_KEY_ID, accessKey));
-            Optional.ofNullable(s3Config.getAwsSecretKey()).ifPresent(secretAccessKey -> builder.put(CLIENT_CREDENTIAL_AWS_SECRET_ACCESS_KEY, secretAccessKey));
-            Optional.ofNullable(s3Config.getStsEndpoint()).ifPresent(endpoint -> builder.put(CLIENT_CREDENTIAL_AWS_STS_ENDPOINT, endpoint));
+            if (catalogRole.isPresent()) {
+                builder
+                        .put(CLIENT_CREDENTIALS_PROVIDER, StsAwsCredentialProvider.class.getName())
+                        .put(CLIENT_CREDENTIAL_AWS_IAM_ROLE, catalogRole.get())
+                        .put(CLIENT_CREDENTIAL_AWS_IAM_ROLE_SESSION_NAME, "trino-iceberg-rest-catalog")
+                        .put(CLIENT_CREDENTIAL_AWS_SIGNER_REGION, s3Config.getRegion());
+                Optional.ofNullable(s3Config.getExternalId()).ifPresent(externalId -> builder.put(CLIENT_CREDENTIAL_AWS_ROLE_EXTERNAL_ID, externalId));
+                Optional.ofNullable(s3Config.getStsRegion()).ifPresent(stsRegion -> builder.put(CLIENT_CREDENTIAL_AWS_STS_REGION, stsRegion));
+                Optional.ofNullable(s3Config.getAwsAccessKey()).ifPresent(accessKey -> builder.put(CLIENT_CREDENTIAL_AWS_ACCESS_KEY_ID, accessKey));
+                Optional.ofNullable(s3Config.getAwsSecretKey()).ifPresent(secretKey -> builder.put(CLIENT_CREDENTIAL_AWS_SECRET_ACCESS_KEY, secretKey));
+                Optional.ofNullable(s3Config.getStsEndpoint()).ifPresent(endpoint -> builder.put(CLIENT_CREDENTIAL_AWS_STS_ENDPOINT, endpoint));
+            }
+            else {
+                builder
+                        .put(REST_ACCESS_KEY_ID, requireNonNull(s3Config.getAwsAccessKey(), "s3.aws-access-key is null"))
+                        .put(REST_SECRET_ACCESS_KEY, requireNonNull(s3Config.getAwsSecretKey(), "s3.aws-secret-key is null"));
+            }
         }
-        else if (s3Config.getAwsAccessKey() != null) {
-            builder
-                    .put(REST_ACCESS_KEY_ID, s3Config.getAwsAccessKey())
-                    .put(REST_SECRET_ACCESS_KEY, requireNonNull(s3Config.getAwsSecretKey(), "s3.aws-secret-key is null"));
-        }
-        // else: OIDC exchange mode — per-user STS credentials are injected at session time
 
         properties = builder.buildOrThrow();
     }

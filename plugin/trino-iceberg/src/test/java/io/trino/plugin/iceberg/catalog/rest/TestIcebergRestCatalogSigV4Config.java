@@ -26,7 +26,6 @@ final class TestIcebergRestCatalogSigV4Config
     {
         assertRecordedDefaults(recordDefaults(IcebergRestCatalogSigV4Config.class)
                 .setSigningName("execute-api")
-                .setStsWebIdentity(false)
                 .setStsRoleArn(null)
                 .setStsPolicy(null)
                 .setStsDurationSeconds(null));
@@ -37,12 +36,10 @@ final class TestIcebergRestCatalogSigV4Config
     {
         IcebergRestCatalogSigV4Config config = new IcebergRestCatalogSigV4Config()
                 .setSigningName("glue")
-                .setStsWebIdentity(true)
                 .setStsRoleArn("arn:aws:iam::123456789012:role/my-role")
                 .setStsDurationSeconds(3600);
 
         assertThat(config.getSigningName()).isEqualTo("glue");
-        assertThat(config.isStsWebIdentity()).isTrue();
         assertThat(config.getStsRoleArn()).hasValue("arn:aws:iam::123456789012:role/my-role");
         assertThat(config.getStsPolicy()).isEmpty();
         assertThat(config.getStsDurationSeconds()).hasValue(3600);
