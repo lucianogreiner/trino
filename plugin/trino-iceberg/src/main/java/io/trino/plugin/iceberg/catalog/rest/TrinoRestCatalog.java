@@ -159,7 +159,7 @@ public class TrinoRestCatalog
             boolean viewEndpointsEnabled,
             boolean serverAssignedTableLocationEnabled)
     {
-        this(null, restSessionCatalog, catalogName, Security.NONE, sessionType, credentials, stsExchanger, tokenProvider, nestedNamespaceEnabled, trinoVersion, typeManager, useUniqueTableLocation, caseInsensitiveNameMatching, remoteNamespaceMappingCache, remoteTableMappingCache, viewEndpointsEnabled);
+        this(null, restSessionCatalog, catalogName, Security.NONE, sessionType, credentials, stsExchanger, tokenProvider, nestedNamespaceEnabled, trinoVersion, typeManager, useUniqueTableLocation, caseInsensitiveNameMatching, remoteNamespaceMappingCache, remoteTableMappingCache, viewEndpointsEnabled, serverAssignedTableLocationEnabled);
     }
 
     public TrinoRestCatalog(
@@ -178,7 +178,8 @@ public class TrinoRestCatalog
             boolean caseInsensitiveNameMatching,
             Cache<Namespace, Namespace> remoteNamespaceMappingCache,
             Cache<TableIdentifier, TableIdentifier> remoteTableMappingCache,
-            boolean viewEndpointsEnabled)
+            boolean viewEndpointsEnabled,
+            boolean serverAssignedTableLocationEnabled)
     {
         this.fileSystemFactory = fileSystemFactory;
         this.restSessionCatalog = requireNonNull(restSessionCatalog, "restSessionCatalog is null");
