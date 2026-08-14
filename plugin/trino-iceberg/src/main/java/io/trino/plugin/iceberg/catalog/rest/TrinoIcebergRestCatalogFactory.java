@@ -37,6 +37,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTSessionCatalog;
 import org.apache.iceberg.rest.RESTUtil;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
