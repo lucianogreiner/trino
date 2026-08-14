@@ -157,7 +157,8 @@ class TestTrinoRestCatalogConvert
                 false,
                 EvictableCacheBuilder.newBuilder().expireAfterWrite(1000, MILLISECONDS).shareNothingWhenDisabled().build(),
                 EvictableCacheBuilder.newBuilder().expireAfterWrite(1000, MILLISECONDS).shareNothingWhenDisabled().build(),
-                true);
+                true,
+                false);
     }
 
     private static ConnectorSession sessionWithToken(String token)
