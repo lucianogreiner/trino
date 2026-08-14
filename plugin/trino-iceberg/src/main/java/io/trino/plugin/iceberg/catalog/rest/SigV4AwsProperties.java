@@ -65,8 +65,10 @@ public class SigV4AwsProperties
                 .put("rest-metrics-reporting-enabled", "false");
 
         if (catalogConfig.getSessionType() == SessionType.USER) {
-            // Per-user AssumeRoleWithWebIdentity: credentials are injected at session time by OidcStsCredentialExchanger.
-            // iceberg.rest-catalog.sts-role-arn holds the catalog-specific role; s3.aws-access-key is filesystem-only.
+            // Catalog init uses Trino's static service credentials; per-user STS credentials are injected at session time.
+            builder
+                    .put(REST_ACCESS_KEY_ID, requireNonNull(s3Config.getAwsAccessKey(), "s3.aws-access-key is null"))
+                    .put(REST_SECRET_ACCESS_KEY, requireNonNull(s3Config.getAwsSecretKey(), "s3.aws-secret-key is null"));
         }
         else {
             // session != USER: static credentials sign all catalog SigV4 requests.

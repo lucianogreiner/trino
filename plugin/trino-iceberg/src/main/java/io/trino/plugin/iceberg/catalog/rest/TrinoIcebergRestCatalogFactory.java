@@ -133,25 +133,6 @@ public class TrinoIcebergRestCatalogFactory
                             .buildOrThrow();
                 }
             }
-            if (stsExchanger.isPresent()) {
-                // tokenProvider.catalogToken() runs the OIDC→catalog token exchange first (if configured)
-                // before passing the token to AssumeRoleWithWebIdentity
-                Optional<String> catalogToken = tokenProvider.catalogToken(identity.getExtraCredentials().get(TOKEN));
-                if (catalogToken.isPresent()) {
-                    AwsSessionCredentials awsCreds = stsExchanger.get().getCredentials(catalogToken.get());
-                    log.debug("Injecting STS credentials into catalog init properties: accessKeyId=%s", awsCreds.accessKeyId());
-                    Set<String> stsKeys = Set.of(AwsProperties.REST_ACCESS_KEY_ID, AwsProperties.REST_SECRET_ACCESS_KEY, AwsProperties.REST_SESSION_TOKEN);
-                    initProperties = ImmutableMap.<String, String>builder()
-                            .putAll(Maps.filterKeys(initProperties, key -> !stsKeys.contains(key)))
-                            .put(AwsProperties.REST_ACCESS_KEY_ID, awsCreds.accessKeyId())
-                            .put(AwsProperties.REST_SECRET_ACCESS_KEY, awsCreds.secretAccessKey())
-                            .put(AwsProperties.REST_SESSION_TOKEN, awsCreds.sessionToken())
-                            .buildOrThrow();
-                }
-                else {
-                    log.warn("STS exchanger present but no OIDC token found in user credentials — catalog will initialize without STS credentials");
-                }
-            }
             RESTSessionCatalog icebergCatalogInstance = new RESTSessionCatalog(
                     config -> HTTPClient.builder(config)
                             .uri(config.get(CatalogProperties.URI))
