@@ -155,7 +155,7 @@ public class TrinoIcebergRestCatalogFactory
                         // succeed. Sessions without STS (e.g. SECURITY DEFINER) rely on the
                         // catalog vending credentials for the service-account call instead.
                         Map<String, String> sessionCreds = context.credentials();
-                        if (sessionCreds.containsKey(REST_ACCESS_KEY_ID) && sessionCreds.containsKey(REST_SESSION_TOKEN)) {
+                        if (sessionCreds != null && sessionCreds.containsKey(REST_ACCESS_KEY_ID) && sessionCreds.containsKey(REST_SESSION_TOKEN)) {
                             Map<String, String> ioConfig = ImmutableMap.<String, String>builder()
                                     .put(ACCESS_KEY_ID, sessionCreds.get(REST_ACCESS_KEY_ID))
                                     .put(SECRET_ACCESS_KEY, sessionCreds.get(REST_SECRET_ACCESS_KEY))
