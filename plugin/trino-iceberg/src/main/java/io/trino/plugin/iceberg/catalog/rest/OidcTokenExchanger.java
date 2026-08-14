@@ -16,9 +16,10 @@ package io.trino.plugin.iceberg.catalog.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
-import io.trino.cache.EvictableCacheBuilder;
+import io.trino.cache.SafeCaches;
 import io.trino.spi.TrinoException;
 
 import java.io.IOException;
@@ -76,10 +77,10 @@ public class OidcTokenExchanger
         this.scope = scope;
         this.extraParams = Map.copyOf(extraParams);
         this.httpClient = HttpClient.newHttpClient();
-        this.cache = EvictableCacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .expireAfterWrite(DEFAULT_EXPIRY_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS)
-                .build();
+        this.cache = SafeCaches.buildNonEvictableCache(
+                CacheBuilder.newBuilder()
+                        .maximumSize(1000)
+                        .expireAfterWrite(DEFAULT_EXPIRY_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS));
     }
 
     public String getToken(String oidcToken)

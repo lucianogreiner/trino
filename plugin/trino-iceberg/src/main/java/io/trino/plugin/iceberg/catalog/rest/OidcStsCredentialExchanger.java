@@ -16,9 +16,10 @@ package io.trino.plugin.iceberg.catalog.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.inject.Inject;
 import io.airlift.log.Logger;
-import io.trino.cache.EvictableCacheBuilder;
+import io.trino.cache.SafeCaches;
 import io.trino.filesystem.s3.S3FileSystemConfig;
 import io.trino.spi.TrinoException;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -105,12 +106,12 @@ public class OidcStsCredentialExchanger
 
     private static Cache<String, CachedCredentials> buildCache()
     {
-        // expireAfterWrite guarantees stale entries are evicted even if exchange() failed and
-        // cache.put() was never called, avoiding the need to restart the coordinator on failures.
-        return EvictableCacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .expireAfterWrite(MIN_DURATION_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS)
-                .build();
+        // expireAfterWrite guarantees stale entries are evicted even when exchange() fails,
+        // avoiding the need to restart the coordinator on credential exchange failures.
+        return SafeCaches.buildNonEvictableCache(
+                CacheBuilder.newBuilder()
+                        .maximumSize(1000)
+                        .expireAfterWrite(MIN_DURATION_SECONDS - EXPIRY_BUFFER_SECONDS, TimeUnit.SECONDS));
     }
 
     /**
