@@ -44,6 +44,12 @@ import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.iceberg.aws.AwsProperties.REST_ACCESS_KEY_ID;
+import static org.apache.iceberg.aws.AwsProperties.REST_SECRET_ACCESS_KEY;
+import static org.apache.iceberg.aws.AwsProperties.REST_SESSION_TOKEN;
+import static org.apache.iceberg.aws.s3.S3FileIOProperties.ACCESS_KEY_ID;
+import static org.apache.iceberg.aws.s3.S3FileIOProperties.SECRET_ACCESS_KEY;
+import static org.apache.iceberg.aws.s3.S3FileIOProperties.SESSION_TOKEN;
 import static org.apache.iceberg.rest.auth.OAuth2Properties.CREDENTIAL;
 import static org.apache.iceberg.rest.auth.OAuth2Properties.TOKEN;
 
@@ -143,6 +149,21 @@ public class TrinoIcebergRestCatalogFactory
                         ConnectorIdentity currentIdentity = (context.wrappedIdentity() != null)
                                 ? ((ConnectorIdentity) context.wrappedIdentity())
                                 : ConnectorIdentity.ofUser("fake");
+                        // MinIO Aistor vends S3 credentials for static service-account SigV4 calls
+                        // but not for STS session credentials. When the session carries per-user
+                        // STS credentials, bridge them into s3.* as a root fallback so file reads
+                        // succeed. Sessions without STS (e.g. SECURITY DEFINER) rely on the
+                        // catalog vending credentials for the service-account call instead.
+                        Map<String, String> sessionCreds = context.credentials();
+                        if (sessionCreds.containsKey(REST_ACCESS_KEY_ID) && sessionCreds.containsKey(REST_SESSION_TOKEN)) {
+                            Map<String, String> ioConfig = ImmutableMap.<String, String>builder()
+                                    .put(ACCESS_KEY_ID, sessionCreds.get(REST_ACCESS_KEY_ID))
+                                    .put(SECRET_ACCESS_KEY, sessionCreds.get(REST_SECRET_ACCESS_KEY))
+                                    .put(SESSION_TOKEN, sessionCreds.get(REST_SESSION_TOKEN))
+                                    .putAll(config)
+                                    .buildKeepingLast();
+                            return fileIoFactory.create(fileSystemFactory.create(currentIdentity, ioConfig), true, ioConfig);
+                        }
                         return fileIoFactory.create(fileSystemFactory.create(currentIdentity, config), true, config);
                     });
             icebergCatalogInstance.initialize(catalogName.toString(), initProperties);
